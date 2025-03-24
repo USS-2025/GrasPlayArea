@@ -4,6 +4,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
+var env = app.Environment;
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -27,3 +28,6 @@ app.MapControllerRoute(
 
 
 app.Run();
+
+Console.WriteLine($"{env.ApplicationName} is running: {builder.Configuration["ASPNETCORE_URLS"]}");
+

@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "Start API & MVC App",
+    "Projects": [
+      {
+        "Path": "WebAppCoreAPI\\WebAppCoreAPI.csproj",
+        "Action": "Start",
+        "DebugTarget": "Container (Dockerfile)"
+      },
+      {
+        "Path": "WebAppCoreMvc\\WebAppCoreMvc.csproj",
+        "Action": "Start",
+        "DebugTarget": "Container (Dockerfile)"
+      }
+    ]
+  }
+]
