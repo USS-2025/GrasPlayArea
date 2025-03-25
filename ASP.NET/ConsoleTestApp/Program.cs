@@ -1,7 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
-// Test: Deutscher Text
-// Test: English Text
+// Test: flscher deutscher Text
+// Test: wrng English text
 
 int[] ints = { -9, 14, 37, 102 };
 
