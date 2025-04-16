@@ -3,6 +3,8 @@
 // Test: flscher deutscher Text
 // Test: wrng English text
 
+#pragma warning disable S125
+
 using System.Diagnostics;
 using BinarySearch;
 
@@ -48,7 +50,7 @@ namespace BinarySearch
             {
                 int midPos = leftPos + (rightPos - leftPos) / 2;
 
-                //Debug.WriteLine($"{leftPos}-{midPos}-{rightPos}");
+                //Trace.WriteLine($"{leftPos}-{midPos}-{rightPos}");
 
                 if (ints[midPos] == k)
                 {
