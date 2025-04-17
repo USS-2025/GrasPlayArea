@@ -5,7 +5,7 @@ using Blackbox;
 using StackExchange.Profiling;
 
 #pragma warning disable S125 
-namespace Dictionary
+namespace DictionaryTests
 {
     public class BenchmarkTestClass
     {
@@ -20,38 +20,102 @@ namespace Dictionary
                 new HandlingUnmanagedResource(),
             ];
 
-            ConcurrentDictionary<int, IWorkerItem> workerDict = new();
+            object[] locks = new object[workerItems.Length];
+            Array.Fill(locks, new object());
 
-            MiniProfiler.Current.Step("Adding items to dictionary");
+            // ConcurrentDictionary is thread-safe :-)
+            ConcurrentDictionary<int, IWorkerItem> workerDictIntKey = new();
+            ConcurrentDictionary<IWorkerItem, IWorkerItem> workerDictObjectKey = new();
+            // HashTable is not thread-safe :-(
+            HashSet<IWorkerItem> hashSet = new();
 
-            Parallel.ForEach(workerItems, wi =>
+            using (MiniProfiler.Current.Step("Adding items to dictionary parallel"))
             {
-                workerDict.TryAdd(wi.ID, wi);
-                Console.WriteLine($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                                $" Added {wi.GetType().Name} object with ID {wi.ID}.");
-            });
+                Parallel.ForEach(workerItems, wi =>
+                {
+                    workerDictIntKey.TryAdd(wi.ID, wi);
+                    workerDictObjectKey.TryAdd(wi, wi);
+                });
+
+                // end index is exclusive ???
+                Parallel.For(fromInclusive: 0, toExclusive: workerItems.Length, body: i =>
+                {
+                    // HashTable is not thread-safe :-(
+                    lock (locks[i])
+                    {
+                        hashSet.Add(workerItems[i]);
+                    }
+                });
+
+                Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Added {workerItems.Length} items.");
+            }
 
             try
             {
+                // Experiment: Adding already existing items
                 // KeyAlreadyExistsException ???
-                workerDict.TryAdd(1, new WorkerItemBase());
 
-                if (workerDict.TryGetValue(1, out IWorkerItem? found))
+                var existing = workerItems[0];
+
+                workerDictIntKey.TryAdd(1, existing);
+                workerDictObjectKey.TryAdd(existing, existing);
+
+                IWorkerItem? found;
+
+                if (workerDictIntKey.TryGetValue(1, out found))
                 {
-                    Console.WriteLine($"Found: {found}.");
+                    Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" ID 1 found: {found}.");
                 }
                 else
                 {
-                    Console.WriteLine("Worker item not found.");
+                    Trace.TraceWarning($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Worker item not found.");
                 }
 
-                if (workerDict.ContainsKey(1))
+                if (workerDictIntKey.ContainsKey(1))
                 {
-                    Console.WriteLine($"ID 1 found: {found}.");
+                    Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" ID 1 found: {found}.");
                 }
                 else
                 {
-                    Console.WriteLine("Worker item not found.");
+                    Trace.TraceWarning($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Worker item not found.");
+                }
+
+                if (workerDictObjectKey.TryGetValue(existing, out found))
+                {
+                    Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Existing item found: {found}.");
+                }
+                else
+                {
+                    Trace.TraceWarning($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Existing item not found.");
+                }
+
+                if (workerDictObjectKey.ContainsKey(existing))
+                {
+                    Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Existing item found: {found}.");
+                }
+                else
+                {
+                    Trace.TraceWarning($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Existing item not found.");
+                }
+
+                if (hashSet.Contains(existing))
+                {
+                    Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Existing item found: {found}.");
+                }
+                else
+                {
+                    Trace.TraceWarning($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Existing item not found.");
                 }
 
                 //var newItem = new WorkerItemBase();
@@ -68,41 +132,29 @@ namespace Dictionary
             catch (Exception ex)
             {
                 Trace.TraceError($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                                        $" {ex}");
-            }
-
-            if (workerDict.TryGetValue(1, out var workerItem))
-            {
-                Console.WriteLine($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                                $" Found {workerItem.GetType().Name} with ID {workerItem.ID}.");
-            }
-            else
-            {
-                Trace.TraceWarning($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                                $" Worker item not found.");
+                                $" {ex}");
             }
 
             using var cts = new CancellationTokenSource();
 
             var workersTask = new Task(() =>
             {
-                MiniProfiler.Current.Step("START: Running all worker tasks");
-
-                Parallel.ForEach(workerItems, async workerItem =>
+                using (MiniProfiler.Current.Step("START: Running all worker tasks parallel"))
                 {
-                    Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                           $" Starting {workerItem.GetType().Name}...");
-                    
-                    await workerItem.DoWorkAsync(cts.Token);
-                    
-                    Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                           $" {workerItem.GetType().Name}.{nameof(IWorkerItem.DoWorkAsync)}() finished.");
-                });
-                
-                Console.WriteLine($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                                    $" All tasks started. Press 'c' to cancel...");
+                    Parallel.ForEach(workerItems, async workerItem =>
+                    {
+                        Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                                $" Starting {workerItem.GetType().Name}...");
 
-                MiniProfiler.Current.Step("END: Running all worker tasks");
+                        await workerItem.DoWorkAsync(cts.Token);
+
+                        Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                                $" {workerItem.GetType().Name}.{nameof(IWorkerItem.DoWorkAsync)}() finished.");
+                    });
+                }
+
+                Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                    $" All tasks started. Press 'c' to cancel...");
 
             }, cts.Token);
 
@@ -119,41 +171,68 @@ namespace Dictionary
             //Task.WaitAny(workersTask, consoleReadTask);
             workersTask.Start();
             consoleReadTask.Start();
+
             await workersTask;
 
-            Console.WriteLine($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+            Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
                                 $" Free / clean up resources...");
 
-            MiniProfiler.Current.Step("Cleaning up / disposing");
-
-            Parallel.ForEach(workerDict, kvp =>
+            using (MiniProfiler.Current.Step("Cleaning up / disposing worker items parallel"))
             {
-                IWorkerItem wi = kvp.Value;
-
-                try
+                Parallel.ForEach(workerDictIntKey, kvp =>
                 {
-                    wi.Dispose();
+                    IWorkerItem wi = kvp.Value;
 
-                    Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                                    $" Disposed {nameof(IWorkerItem)} with Key/ID++{kvp.Key}.");
-
-                    // QUESTION: Removing already disposed object from Dictionary ???
-                    // Or will ObjectDisposedException be thrown?
-                    //if (workerDict.ContainsValue(wi))
-                    if (workerDict.TryRemove(kvp.Key, out IWorkerItem? found))
+                    try
                     {
+                        wi.Dispose();
+
                         Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                           $" Found & Removed: {found}.");
+                                        $" Disposed {nameof(IWorkerItem)} with Key/ID=={wi.ID}.");
+
+                        // QUESTION: Removing already disposed object from Dictionary ???
+                        // Or will ObjectDisposedException be thrown?
+                        //if (workerDict.ContainsValue(wi))
+                        if (workerDictIntKey.TryRemove(kvp.Key, out IWorkerItem? found))
+                        {
+                            Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                               $" Found & Removed: {found}.");
+                        }
                     }
-                }
-                catch (Exception ex)
+                    catch (Exception ex)
+                    {
+                        Trace.TraceError($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                            $" {ex}");
+                    }
+                });
+
+                Parallel.ForEach(workerDictObjectKey, kvp =>
                 {
-                    Trace.TraceError($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
-                                        $" {ex}");
-                }
-            });
+                    IWorkerItem wi = kvp.Value;
 
+                    try
+                    {
+                        wi.Dispose();
+
+                        Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                        $" Disposed {nameof(IWorkerItem)} with Key/ID=={wi.ID}.");
+
+                        // QUESTION: Removing already disposed object from Dictionary ???
+                        // Or will ObjectDisposedException be thrown?
+                        //if (workerDict.ContainsValue(wi))
+                        if (workerDictObjectKey.TryRemove(kvp.Key, out IWorkerItem? found))
+                        {
+                            Trace.TraceInformation($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                               $" Found & Removed: {found}.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.TraceError($"{DateTime.Now:T} [{Environment.CurrentManagedThreadId:000}]:" +
+                                            $" {ex}");
+                    }
+                });
+            }
         }
-
     }
 }

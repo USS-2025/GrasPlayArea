@@ -5,7 +5,7 @@ VisualStudioVersion = 17.13.35919.96
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BinarySearch", "BinarySearch\BinarySearch.csproj", "{416025FA-1092-4DD1-ADF6-81C8236F29AB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dictionary", "Dictionary\Dictionary.csproj", "{5DA21767-2E5C-40C6-A6BA-BA8F6C6F9F97}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DictionaryTests", "Dictionary\DictionaryTests.csproj", "{5DA21767-2E5C-40C6-A6BA-BA8F6C6F9F97}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Blackbox", "Blackbox\Blackbox.csproj", "{1C5B4669-FDFC-4E0B-AE3A-DEAE2413A345}"
 EndProject

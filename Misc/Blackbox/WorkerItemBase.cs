@@ -35,6 +35,12 @@ namespace Blackbox
         }
 
         [Benchmark]
+        public void BenchmarkTestMethod()
+        {
+            Task.Delay(this.MinDuration).Wait();
+        }
+
+        [Benchmark]
         public virtual async Task DoWorkAsync(CancellationToken? cancelToken = null)
             => await Task.Delay(this.MinDuration, cancelToken ?? CancellationToken.None);
 
